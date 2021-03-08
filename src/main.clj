@@ -20,9 +20,9 @@ end return the new list {new-coll} at the end.."
 (defn drop-nth
 
   ; n:        index in the list
-  ; new-coll: the new list without the nth term
-  ; coll:     original list with the nth term
-  [n new-coll coll]
+  ; new-coll: the new list without the nth term                     NOTE ON NEW-COLL: ; when calling drop-nth, the parameter for new-coll, should always be set to and empty list '()
+  ; coll:     original list with the nth term                                         ; If the parameter is a non zero count list then the return list will be that non zero count + all elements
+  [n new-coll coll]                                                                   ; appended to the end of that list. This is a way to get away with variables being immutable.
 
   (cond
     ; If the nth term is found, pop the term off the original list and return the new list without adding the nth term
@@ -38,20 +38,20 @@ end return the new list {new-coll} at the end.."
     ; If the nth term has not been found, recursively call this function but with (n - 1) and remove the first element in the original list and place it in the new list
     (> n 0) (drop-nth (- n 1) (seq (conj (vec new-coll) (first coll))) (pop coll))))
 
-(defn AND
+"
+Function that performs symbolic and simplification on un-nested expressions
+
+; [] The first element in the parameter list is 'and'
+; [] Everything after that are expressions
+; [] Thought-process: Look at two elements in the parameterized list at a time, then get the result of the symbolic simplification and apply it
+;    To the next element in the list
+; [] Continue till there are no more elements in the list and return the finally symbolic simplification
+
+; Try to get the expression down to just 3 inputs -> (and x y) and then return that value to be used on another set of expressions
+"
+(defn and-simplify
   [exp]
 
-  "
-  Function that performs symbolic simplification on un-nested expressions
-
-  ; [] The first element in the parameter list is 'and'
-  ; [] Everything after that are expressions
-  ; [] Thought-process: Look at two elements in the parameterized list at a time, then get the result of the symbolic simplification and apply it
-  ;    To the next element in the list
-  ; [] Continue till there are no more elements in the list and return the finally symbolic simplification
-
-  ; Try to get the expression down to just 3 inputs -> (and x y) and then return that value to be used on another set of expressions
-  "
   (cond
 
     ; If the count of the list is 2 (and {expression} ) then return the {expression}
@@ -92,16 +92,144 @@ end return the new list {new-coll} at the end.."
 
                             ;Conditional that can not be evaluated farther, then return the AND expression
                             (and (not= variable-one-type java.lang.Boolean) (not= variable-two-type java.lang.Boolean)) (list "and" (nth exp 1) (nth exp 2)))))
-
-
     ; If the count is greater than 3, then recursively simplify the expression
     ; This is done by evaluating the first two expressions and then recursively calling the function on the rest of the expression, minus the first two expresions
     ; and then evaluating the expression in full
-    (> (count exp) 3) (AND (list "and" (AND (list "and" (nth exp 1) (nth exp 2))) (AND (drop-nth 1 '() (drop-nth 1 '() exp)))))))
+    (> (count exp) 3) (and-simplify (list "and" (and-simplify (list "and" (nth exp 1) (nth exp 2))) (and-simplify (drop-nth 1 '() (drop-nth 1 '() exp)))))
+    ))
 
-(defn NOT
+"Function that performs symbolic simplification for the or boolean operator
+The function is recursive to break down expressions that have 3 or more booleans
+The first element in the exp list is or and everything after that is a boolean"
+(defn or-simplify
   [exp]
 
-  
+  (cond
+    ; Checks if the exp contains true -> if true then dont bother going through the exp, just return true
+    (.contains exp 'true) true
 
-  )
+    ; If the exp just contains one boolean then just return that boolean
+    (= (count exp) 2) (last exp)
+
+    ;If the exp has two booleans then grab the first and second types for the booleans
+    (= (count exp) 3) (let [variable-one-type (type (first (pop exp)))]
+                        (let [variable-two-type (type (last exp))]
+
+                          (cond
+
+                            ; If the both expressions are lists, then concat the expressions together
+                            (and (= (type (first (pop exp))) clojure.lang.PersistentList) (= (type (last exp)) clojure.lang.PersistentList)) (concat (first (pop (exp))) (drop-nth 0 '() (last exp)))
+                            ; If the first expression is a list and not the second, then concat the second element to the list
+                            (= (type (first (pop exp))) clojure.lang.PersistentList) (concat (first (pop exp)) (list (last exp)))
+                            ; If the second expression is a list and not the first, then concat the first element to the list
+                            (= (type (last exp)) clojure.lang.PersistentList) (concat (last exp) (list (first (pop exp))))
+
+                            ; If both  types are booleans then evaluate the booleans and return the final boolean
+                            (and (= variable-one-type java.lang.Boolean) (= variable-two-type java.lang.Boolean)) (or (first (pop exp)) (last exp))
+
+                            ; If the first type is boolean but not the second
+                            (and (= variable-one-type java.lang.Boolean) (not= variable-two-type java.lang.Boolean)) (cond
+                                                                                                                       ; If the boolean is false then return the variable
+                                                                                                                       (= (first (pop exp)) false) (last exp)
+                                                                                                                       ; If the boolean is true then return true
+                                                                                                                       (= (first (pop exp)) true) true
+                                                                                                                       )
+                            ; If the second type is boolean but not the first
+                            (and (= variable-two-type java.lang.Boolean) (not= variable-one-type java.lang.Boolean)) (cond
+                                                                                                                       ; If the boolean is false then return the variable
+                                                                                                                       (= (last exp) false) (first (pop exp))
+                                                                                                                       ; If the boolean is true then return true
+                                                                                                                       (= (last exp) true) true
+                                                                                                                       )
+                            ; If both types are symbols then return the exp
+                            (and (not= variable-one-type java.lang.Boolean) (not= variable-two-type java.lang.Boolean)) exp
+
+                            )))
+    ; If the count of the exp is greater than 3, then recursively simplify the expression. First simplify the first two booleans together and then recursively call the function on the rest of the list
+    ; At the end, combine all the evaluations together with another recursive call
+    (> (count exp) 3) (or-simplify (list "or" (or-simplify (list "or" (nth exp 1) (nth exp 2))) (or-simplify (drop-nth 1 '() (drop-nth 1 '() exp)))))
+
+    ))
+
+"Recursive Function for de-morgans law
+ The function iterates over each boolean variable and negates them and places them in a list with the opposite boolean operator
+ new-coll starts with the new boolean operator and each recursive call builds the new-coll with each negated variable
+      - If new-coll has the boolean operator 'and' then the new-coll with start with 'or'
+      -If new-coll has the boolean operator 'or' then the new-coll with start with 'and'
+ The function returns the new-coll when there are no more variables to iterate over
+"
+(defn demorgans
+  ; n - the number of variables in the expression
+  ; new-coll - the list that will be returned at the end of all of the negated variables plus the starting boolean operator
+  ; coll - the starting expression that removes a variable each recursive call
+  [n new-coll coll]
+
+  ;Checks if there are anymore variables
+  (cond
+    ; If no more variables then return the new-coll
+    (= n 0) new-coll
+    ; If there are more variables then recursively call this function with one less variable in coll and place it in new-coll but negated
+    (> n 0) (demorgans (- n 1) (concat new-coll (list (list 'not (first coll)) ) ) (pop coll) )))
+
+"Function that negates an expression
+Takes in an expression that is a list and evaluates it
+"
+(defn not-simplify
+  [exp]
+  ; Checks the type of the boolean
+  (let [exp-type (type (last exp))]
+
+    (cond
+      ; If the type is a boolean
+      (= exp-type java.lang.Boolean) (cond
+                                          ; return the opposite boolean
+                                         (= (last exp) true) false
+                                         (= (last exp) false) true
+                                         )
+
+      ; If the type is a list then it is a special case
+      (= exp-type clojure.lang.PersistentList) (let [boolean-operation (first (last exp))]
+                                                 (cond
+                                                   ; If the list starts with a not operator, then its a double negation and just return the variable
+                                                   (= boolean-operation (symbol "not")) (last (last exp))
+                                                   ; If the list starts with and, then it is demorgan and return the negated variables with the boolean operator or
+                                                   (= boolean-operation (symbol "and")) (demorgans (count (pop (last exp))) '(or) (pop (last exp)))
+                                                   ; If the list starts with or, then it is demorgan and return the negated variables with the boolean operator and
+                                                   (= boolean-operation (symbol "or")) (demorgans (count (pop (last exp))) '(and) (pop (last exp)))
+                                                   )
+                                                 )
+      ; If the type is neither a boolean or list then just return the expression
+      (and (not= exp-type java.lang.Boolean) (not= exp-type clojure.lang.PersistentList)) exp
+      )))
+
+
+;Test Cases:
+
+(println (or-simplify '(or true)))         ;[x] - true
+(println (or-simplify '(or false)))        ;[x] - false
+(println (or-simplify '(or x)))            ;[x] - x
+(println (and-simplify '(and true)))       ;[x] - true
+(println (and-simplify '(and false)))      ;[x] - false
+(println (and-simplify '(and x)))          ;[x] - x
+(println (not-simplify '(not false)))      ;[x] - true
+(println (not-simplify '(not true)))       ;[x] - false
+(println (not-simplify '(not (and x y))))  ;[x] - (or (not x) (not y))
+(println (not-simplify '(not (or x y))))   ;[x] - (or (not x) (not y))
+(println (not-simplify '(not (not x))))    ;[x] - x
+(println (or-simplify '(or x false)))      ;[x] - x
+(println (or-simplify '(or false x)))      ;[x] - x
+(println (or-simplify '(or true x)))       ;[x] - true
+(println (or-simplify '(or x true)))       ;[x] - true
+(println (and-simplify '(and x false)))    ;[x] - false
+(println (and-simplify '(and false x)))    ;[x] - false
+(println (and-simplify '(and x true)))     ;[x] - x
+(println (and-simplify '(and true x)))     ;[x] - x
+(println (or-simplify '(or x y true)))     ;[x] - true
+(println (or-simplify '(or x false y)))    ;[x] - (or x y)
+(println (and-simplify '(and false x y)))  ;[x] - false
+(println (and-simplify '(and x true y)))   ;[x] - (and x y)
+
+
+
+
+
