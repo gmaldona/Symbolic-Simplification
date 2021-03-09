@@ -202,32 +202,56 @@ Takes in an expression that is a list and evaluates it
       (and (not= exp-type java.lang.Boolean) (not= exp-type clojure.lang.PersistentList)) exp
       )))
 
+(defn lookup [i m]
+  "This function looks up a value, i, in map m and returns the result if it exists, and otherwise returns i."
+  (get m i i))
+
+(defn substitute [l m]
+  "This function does a deep substitute on lists"
+  (map (fn [i]
+         (if (seq? i)
+           (substitute i m)
+           (lookup i m)))
+       l))
+
+(defn evalexp [l m]
+  "This function further evalutes the expression based on the boolean operator in the first index of the list and returns the value"
+  (let [exp (into (list) (into (list) (substitute l m)))]
+    (let [boolean-operator (first exp)]
+      (cond
+        (= (compare boolean-operator "and") 0)  (and-simplify exp)
+        (= (compare boolean-operator "or") 0)  (or-simplify exp)
+        (= (compare boolean-operator "not") 0) (not-simplify exp)
+        )
+      )))
 
 ;Test Cases:
 
-(println (or-simplify '(or true)))         ;[x] - true
-(println (or-simplify '(or false)))        ;[x] - false
-(println (or-simplify '(or x)))            ;[x] - x
-(println (and-simplify '(and true)))       ;[x] - true
-(println (and-simplify '(and false)))      ;[x] - false
-(println (and-simplify '(and x)))          ;[x] - x
-(println (not-simplify '(not false)))      ;[x] - true
-(println (not-simplify '(not true)))       ;[x] - false
-(println (not-simplify '(not (and x y))))  ;[x] - (or (not x) (not y))
-(println (not-simplify '(not (or x y))))   ;[x] - (or (not x) (not y))
-(println (not-simplify '(not (not x))))    ;[x] - x
-(println (or-simplify '(or x false)))      ;[x] - x
-(println (or-simplify '(or false x)))      ;[x] - x
-(println (or-simplify '(or true x)))       ;[x] - true
-(println (or-simplify '(or x true)))       ;[x] - true
-(println (and-simplify '(and x false)))    ;[x] - false
-(println (and-simplify '(and false x)))    ;[x] - false
-(println (and-simplify '(and x true)))     ;[x] - x
-(println (and-simplify '(and true x)))     ;[x] - x
-(println (or-simplify '(or x y true)))     ;[x] - true
-(println (or-simplify '(or x false y)))    ;[x] - (or x y)
-(println (and-simplify '(and false x y)))  ;[x] - false
-(println (and-simplify '(and x true y)))   ;[x] - (and x y)
+;(println (or-simplify '(or true)))         ;[x] - true
+;(println (or-simplify '(or false)))        ;[x] - false
+;(println (or-simplify '(or x)))            ;[x] - x
+;(println (and-simplify '(and true)))       ;[x] - true
+;(println (and-simplify '(and false)))      ;[x] - false
+;(println (and-simplify '(and x)))          ;[x] - x
+;(println (not-simplify '(not false)))      ;[x] - true
+;(println (not-simplify '(not true)))       ;[x] - false
+;(println (not-simplify '(not (and x y))))  ;[x] - (or (not x) (not y))
+;(println (not-simplify '(not (or x y))))   ;[x] - (or (not x) (not y))
+;(println (not-simplify '(not (not x))))    ;[x] - x
+;(println (or-simplify '(or x false)))      ;[x] - x
+;(println (or-simplify '(or false x)))      ;[x] - x
+;(println (or-simplify '(or true x)))       ;[x] - true
+;(println (or-simplify '(or x true)))       ;[x] - true
+;(println (and-simplify '(and x false)))    ;[x] - false
+;(println (and-simplify '(and false x)))    ;[x] - false
+;(println (and-simplify '(and x true)))     ;[x] - x
+;(println (and-simplify '(and true x)))     ;[x] - x
+;(println (or-simplify '(or x y true)))     ;[x] - true
+;(println (or-simplify '(or x false y)))    ;[x] - (or x y)
+;(println (and-simplify '(and false x y)))  ;[x] - false
+;(println (and-simplify '(and x true y)))   ;[x] - (and x y)
+
+(println (evalexp (and-simplify '(and x true y z)) '{x true, y true} ) )
 
 
 
