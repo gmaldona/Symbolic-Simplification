@@ -30,5 +30,7 @@ The simplify methods takes a list and outputs a simplified list. The ```(evalexp
 (println (and-simplify '(and false x y)))  ; - false
 (println (and-simplify '(and x true y)))   ; - (and x y)
 
-(println (evalexp (and-simplify '(and x true y z)) '{x true, y true} ) )    ; - z
+(println (evalexp (and-simplify '(and x true y z)) '{x true, y true}))    ; - z
+(println (simplify-exp '(not (and (not x) true))))                        ; - x
+(println (evalexp '(and x (or x (and y (not z)))) '{x false, z true}))    ; - false
 ```
