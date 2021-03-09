@@ -38,6 +38,7 @@ end return the new list {new-coll} at the end.."
     ; If the nth term has not been found, recursively call this function but with (n - 1) and remove the first element in the original list and place it in the new list
     (> n 0) (drop-nth (- n 1) (seq (conj (vec new-coll) (first coll))) (pop coll))))
 
+
 "
 Function that performs symbolic and simplification on un-nested expressions
 
@@ -63,14 +64,6 @@ Function that performs symbolic and simplification on un-nested expressions
                         (let [variable-two-type (type (nth exp 2))]
 
                           (cond
-
-                            ; If the both expressions are lists, then concat the expressions together
-                            (and (= (type (first (pop exp))) clojure.lang.PersistentList) (= (type (last exp)) clojure.lang.PersistentList)) (concat (first (pop (exp))) (drop-nth 0 '() (last exp)))
-                            ; If the first expression is a list and not the second, then concat the second element to the list
-                            (= (type (first (pop exp))) clojure.lang.PersistentList) (concat (first (pop exp)) (list (last exp)))
-                            ; If the second expression is a list and not the first, then concat the first element to the list
-                            (= (type (last exp)) clojure.lang.PersistentList) (concat (last exp) (list (first (pop exp))))
-
                             ; If the first expression is a boolean and the second expression is not
                             (and (= variable-one-type java.lang.Boolean) (not= variable-two-type java.lang.Boolean)) (cond
                                                                                                                        ; If the first exp is true then return the variable
@@ -86,6 +79,12 @@ Function that performs symbolic and simplification on un-nested expressions
                                                                                                                        ; If the first exp is false then return false
                                                                                                                        (= (nth exp 2) false) false
                                                                                                                        )
+                            ; If the both expressions are lists, then concat the expressions together
+                            (and (= (type (first (pop exp))) clojure.lang.PersistentList) (= (type (last exp)) clojure.lang.PersistentList)) (concat (first (pop (exp))) (drop-nth 0 '() (last exp)))
+                            ; If the first expression is a list and not the second, then concat the second element to the list
+                            (= (type (first (pop exp))) clojure.lang.PersistentList) (concat (first (pop exp)) (list (last exp)))
+                            ; If the second expression is a list and not the first, then concat the first element to the list
+                            (= (type (last exp)) clojure.lang.PersistentList) (concat (last exp) (list (first (pop exp))))
 
                             ;Conditional that both variable types are booleans then return the evaluated expression
                             (and (= variable-one-type java.lang.Boolean) (= variable-two-type java.lang.Boolean)) (and (nth exp 1) (nth exp 2))
@@ -202,6 +201,39 @@ Takes in an expression that is a list and evaluates it
       (and (not= exp-type java.lang.Boolean) (not= exp-type clojure.lang.PersistentList)) exp
       )))
 
+"Recursive function that checks if an arg is a list and if it is a list then check if their args are lists so on so forth until there are no more lists and the expression can be evaluated"
+(defn simplify-exp [exp]
+  (let [boolean-operator (first exp)]
+    (cond
+      (= boolean-operator (symbol 'and)) (let [arg1 (first (pop exp))]
+                                           (let [arg2 (last exp)]
+                                             (cond
+                                               (and (= (type arg1) clojure.lang.PersistentList) (= (type arg2) clojure.lang.PersistentList)) (and-simplify (list "and" (simplify-exp arg1) (simplify-exp arg2)))
+                                               (= (type arg1) clojure.lang.PersistentList) (and-simplify (list "and" (simplify-exp arg1) arg2))
+                                               (= (type arg2) clojure.lang.PersistentList) (and-simplify (list "and" arg1 (simplify-exp arg2)))
+                                               (and (not= (type arg1) clojure.lang.PersistentList) (not= (type arg2) clojure.lang.PersistentList)) (and-simplify exp)
+                                               )
+                                             ))
+
+      (= boolean-operator (symbol 'or)) (let [arg1 (first (pop exp))]
+                                          (let [arg2 (last exp)]
+                                            (cond
+                                              (and (= (type arg1) clojure.lang.PersistentList) (= (type arg2) clojure.lang.PersistentList)) (or-simplify (list "or" (simplify-exp arg1) (simplify-exp arg2)))
+                                              (= (type arg1) clojure.lang.PersistentList) (or-simplify (list "or" (simplify-exp arg1) arg2))
+                                              (= (type arg2) clojure.lang.PersistentList) (or-simplify (list "or" arg1 (simplify-exp arg2)))
+                                              (and (not= (type arg1) clojure.lang.PersistentList) (not= (type arg2) clojure.lang.PersistentList)) (or-simplify exp)
+                                              )
+
+                                            ))
+
+      (= boolean-operator (symbol 'not)) (let [arg (last exp)]
+                                           (cond
+                                             (= (type arg) clojure.lang.PersistentList) (not-simplify (list "not" (simplify-exp arg)))
+                                             (not= (type arg) clojure.lang.PersistentList) (not-simplify exp)
+                                             )
+                                           )
+      )))
+
 (defn lookup [i m]
   "This function looks up a value, i, in map m and returns the result if it exists, and otherwise returns i."
   (get m i i))
@@ -219,40 +251,46 @@ Takes in an expression that is a list and evaluates it
   (let [exp (into (list) (into (list) (substitute l m)))]
     (let [boolean-operator (first exp)]
       (cond
-        (= (compare boolean-operator "and") 0)  (and-simplify exp)
-        (= (compare boolean-operator "or") 0)  (or-simplify exp)
-        (= (compare boolean-operator "not") 0) (not-simplify exp)
+        (= boolean-operator (symbol 'and))  (simplify-exp exp)
+        (= boolean-operator (symbol 'or))  (simplify-exp exp)
+        (= boolean-operator (symbol 'not)) (simplify-exp exp)
         )
       )))
 
+;;
+
 ;Test Cases:
 
-;(println (or-simplify '(or true)))         ;[x] - true
-;(println (or-simplify '(or false)))        ;[x] - false
-;(println (or-simplify '(or x)))            ;[x] - x
-;(println (and-simplify '(and true)))       ;[x] - true
-;(println (and-simplify '(and false)))      ;[x] - false
-;(println (and-simplify '(and x)))          ;[x] - x
-;(println (not-simplify '(not false)))      ;[x] - true
-;(println (not-simplify '(not true)))       ;[x] - false
-;(println (not-simplify '(not (and x y))))  ;[x] - (or (not x) (not y))
-;(println (not-simplify '(not (or x y))))   ;[x] - (or (not x) (not y))
-;(println (not-simplify '(not (not x))))    ;[x] - x
-;(println (or-simplify '(or x false)))      ;[x] - x
-;(println (or-simplify '(or false x)))      ;[x] - x
-;(println (or-simplify '(or true x)))       ;[x] - true
-;(println (or-simplify '(or x true)))       ;[x] - true
-;(println (and-simplify '(and x false)))    ;[x] - false
-;(println (and-simplify '(and false x)))    ;[x] - false
-;(println (and-simplify '(and x true)))     ;[x] - x
-;(println (and-simplify '(and true x)))     ;[x] - x
-;(println (or-simplify '(or x y true)))     ;[x] - true
-;(println (or-simplify '(or x false y)))    ;[x] - (or x y)
-;(println (and-simplify '(and false x y)))  ;[x] - false
-;(println (and-simplify '(and x true y)))   ;[x] - (and x y)
+;(println (or-simplify '(or true)))         ; - true
+;(println (or-simplify '(or false)))        ; - false
+;(println (or-simplify '(or x)))            ; - x
+;(println (and-simplify '(and true)))       ; - true
+;(println (and-simplify '(and false)))      ; - false
+;(println (and-simplify '(and x)))          ; - x
+;(println (not-simplify '(not false)))      ; - true
+;(println (not-simplify '(not true)))       ; - false
+;(println (not-simplify '(not (and x y))))  ; - (or (not x) (not y))
+;(println (not-simplify '(not (or x y))))   ; - (or (not x) (not y))
+;(println (not-simplify '(not (not x))))    ; - x
+;(println (or-simplify '(or x false)))      ; - x
+;(println (or-simplify '(or false x)))      ; - x
+;(println (or-simplify '(or true x)))       ; - true
+;(println (or-simplify '(or x true)))       ; - true
+;(println (and-simplify '(and x false)))    ; - false
+;(println (and-simplify '(and false x)))    ; - false
+;(println (and-simplify '(and x true)))     ; - x
+;(println (and-simplify '(and true x)))     ; - x
+;(println (or-simplify '(or x y true)))     ; - true
+;(println (or-simplify '(or x false y)))    ; - (or x y)
+;(println (and-simplify '(and false x y)))  ; - false
+;(println (and-simplify '(and x true y)))   ; - (and x y)
+;
+;(println (evalexp (and-simplify '(and x true y z)) '{x true, y true} ) )    ; - z
+;(println (get-depth '(and (and true false) (and false false))))
+;(println (get-depth '(and (not (or x y)) (or z))))
+(println (simplify-exp '(not (and (not x) true))))
+(println (evalexp '(and x (or x (and y (not z)))) '{x false, z true}))
 
-(println (evalexp (and-simplify '(and x true y z)) '{x true, y true} ) )
-
-
+;(println (simplify-exp '(or false x)))
 
 
