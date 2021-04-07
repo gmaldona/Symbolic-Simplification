@@ -1,6 +1,8 @@
 # Symbolic-Simplification
 Clojure Application for symbolic simplification (AND OR NOT)
 
+[Programming Languages (CSC 344) Project 2](https://danielschlegel.org/wp/teaching/csc344-spring-2021/assignment-2/)
+
 The simplify methods takes a list and outputs a simplified list. The ```(evalexp [l m])``` takes a simplified expression and a map of variables to booleans and evaluates the expression by substituting the varibles into the expression and then calling the respective simplify method again. 
 
 
